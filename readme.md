@@ -1,162 +1,119 @@
 # URL Shortener
 
-A full-stack URL shortening application built with **React.js** and **Express.js**. Users can turn long URLs into compact links and use those links to redirect to the original destination.
-
-## Tech Stack
-
-- **Frontend:** React.js
-- **Backend:** Node.js and Express.js
-- **API:** REST
-- **Database:** Add your preferred database, such as MongoDB or PostgreSQL
-
-## Suggested Project Structure
-
-```text
-URL Shortener/
-├── client/                 # React frontend
-│   ├── public/
-│   ├── src/
-│   └── package.json
-├── server/                 # Express backend
-│   ├── controllers/
-│   ├── models/
-│   ├── routes/
-│   ├── index.js
-│   └── package.json
-├── .gitignore
-└── readme.md
-```
+A small full-stack application for creating, copying, tracking, and deleting short links. The React client talks to an Express REST API; the server keeps links in memory for a simple, dependency-free development data store.
 
 ## Features
 
-- Create a short URL from a long URL
-- Redirect short links to their original URLs
-- Validate submitted URLs
-- Copy generated links to the clipboard
-- Display clear loading and error states
-- Optional click tracking and link history
+- Validate and shorten HTTP or HTTPS URLs
+- Copy generated short links
+- View link history and click totals
+- Redirect short codes and record visits
+- Delete links that are no longer needed
+- Return consistent JSON errors for invalid or missing resources
 
-## Getting Started
+## Project Structure
 
-### Prerequisites
+```text
+client/                 React and Vite frontend
+  src/                  Components, API helpers, styles, and tests
+server/                 Express backend
+  src/controllers/      HTTP request and response handling
+  src/routes/           API route declarations
+  src/services/         Validation and URL-shortening rules
+  src/repositories/     In-memory persistence
+  test/                 Supertest integration tests
+```
 
-Install the following before running the project:
+## Requirements
 
-- [Node.js](https://nodejs.org/) 18 or newer
+- Node.js 20 or newer
 - npm
-- A database, if the backend persists links
 
-### Installation
+## Local Setup
 
-Clone the repository and install the frontend and backend dependencies:
+Install all workspace dependencies from the repository root:
 
 ```bash
-git clone <repository-url>
-cd "URL Shortener"
-
-cd server
-npm install
-
-cd ../client
 npm install
 ```
 
-### Environment Variables
-
-Create a `.env` file inside `server`:
-
-```env
-PORT=5000
-BASE_URL=http://localhost:5000
-DATABASE_URL=<your-database-connection-string>
-```
-
-If the React application needs an explicit API URL, create `client/.env`:
-
-```env
-VITE_API_URL=http://localhost:5000
-```
-
-> If the client uses Create React App instead of Vite, name the variable `REACT_APP_API_URL`.
-
-## Running the Application
-
-Start the Express server:
+Copy the server environment example and adjust it when needed:
 
 ```bash
-cd server
+cp server/.env.example server/.env
+```
+
+Start the API and client together:
+
+```bash
 npm run dev
 ```
 
-In another terminal, start the React application:
+The API defaults to `http://localhost:3000`; Vite serves the client at `http://localhost:5173`. Set `VITE_API_URL` in `client/.env` when the API runs at a different address.
 
-```bash
-cd client
-npm run dev
-```
+## Configuration
 
-The default local addresses are:
+The server accepts these environment variables:
 
-- React app: `http://localhost:5173`
-- Express API: `http://localhost:5000`
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | Express listen port |
+| `BASE_URL` | `http://localhost:3000` | Prefix returned in generated short URLs |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed browser origin for CORS |
 
-Exact commands and ports depend on the scripts configured in each `package.json`.
+Never commit a real `.env` file. Data is currently stored in memory and is cleared whenever the server restarts.
 
-## API Endpoints
+## API
 
 ### Create a short URL
 
 ```http
 POST /api/urls
 Content-Type: application/json
+
+{"url":"https://example.com/a/long/path"}
 ```
 
-Request body:
+Returns `201` with `id`, `shortCode`, `shortUrl`, `originalUrl`, `clicks`, and `createdAt`. Invalid or unsupported URLs return `400`.
 
-```json
-{
-  "url": "https://example.com/a/very/long/url"
-}
+### List URL history
+
+```http
+GET /api/urls
 ```
 
-Example response:
+Returns `200` with `{ "urls": [...] }`.
 
-```json
-{
-  "shortUrl": "http://localhost:5000/abc123",
-  "originalUrl": "https://example.com/a/very/long/url"
-}
+### Delete a URL
+
+```http
+DELETE /api/urls/:shortCode
 ```
 
-### Redirect to the original URL
+Returns `204` when deleted or `404` when the code is unknown.
+
+### Follow a short URL
 
 ```http
 GET /:shortCode
 ```
 
-The server responds with an HTTP redirect to the stored original URL.
+Returns `302`, redirects to the original URL, and increments `clicks`. Unknown codes return `404`.
 
-## Useful Scripts
+## Quality Checks
 
-Common scripts for both applications include:
+Run the combined checks from the repository root:
 
 ```bash
-npm run dev       # Start the development server
-npm run build     # Create a production build
-npm test          # Run tests
+npm test          # Run frontend and backend tests once
+npm run lint      # Check all source and tests
+npm run build     # Create the production client bundle
 ```
 
-Update this section to match the scripts in the project's `package.json` files.
+For watch mode, run `npm run test:watch --workspace client` or `npm run test:watch --workspace server`.
 
-## Production Notes
+Backend tests use Vitest and Supertest. Frontend tests use Vitest, Testing Library, and `jsdom`; they focus on behavior visible to users. Add regression coverage for every bug fix.
 
-- Validate URLs on the server; do not rely only on client-side validation.
-- Generate unique, hard-to-guess short codes.
-- Add rate limiting to the URL creation endpoint.
-- Restrict CORS to trusted frontend origins.
-- Store secrets in environment variables and keep `.env` files out of Git.
-- Use HTTPS in production.
+## Architecture and Security
 
-## License
-
-Add the license that applies to this project.
+Express routes delegate to controllers and a service layer, while the repository owns persistence. This keeps URL validation, code generation, and redirect behavior testable outside route declarations. Creation requests are rate-limited, JSON bodies are size-limited, Helmet adds security headers, and production deployments should set an explicit trusted `CLIENT_ORIGIN` and use HTTPS.
